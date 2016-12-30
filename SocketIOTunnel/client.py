@@ -14,7 +14,6 @@ import gevent
 from gevent.server import StreamServer
 from socketIO_client import SocketIO, LoggingNamespace
 
-
 from SocketIOTunnel.utils import logger
 from SocketIOTunnel.dataparse import DataParser
 import logging
@@ -24,7 +23,7 @@ logging.getLogger("socketIO-client").setLevel(logging.ERROR)
 
 
 class SocketIOClient(object):
-    def __init__(self, socket, address, server_ip, server_port,data_parser):
+    def __init__(self, socket, address, server_ip, server_port, data_parser):
         self.socket = socket
         self.address = address
         self.server_ip = server_ip
@@ -106,7 +105,7 @@ class SocketIOClient(object):
 
 def socket_handle(socket, address):
     logger.debug("new client<%s> connect" % str(address))
-    sic = SocketIOClient(socket, address, globals()["server_ip"], globals()["server_port"],globals()["data_parser"])
+    sic = SocketIOClient(socket, address, globals()["server_ip"], globals()["server_port"], globals()["data_parser"])
     try:
         sic.connect()
         sic.start()
@@ -116,10 +115,10 @@ def socket_handle(socket, address):
         sic.disconnect()
 
 
-def main(ip="0.0.0.0", port=10011, server_ip="127.0.0.1", server_port=10010):
+def main(ip="0.0.0.0", port=10011, server_ip="127.0.0.1", server_port=10010, password='password', method='chacha20'):
     globals()["server_ip"] = server_ip
     globals()["server_port"] = server_port
-    globals()["data_parser"] = DataParser()
+    globals()["data_parser"] = DataParser(password=password, method=method)
     logger.info("start client on %s:%d" % (ip, port))
     server = StreamServer((ip, port), socket_handle)
     server.init_socket()

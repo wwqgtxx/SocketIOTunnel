@@ -115,7 +115,7 @@ def connect(sid, environ):
     room = sid
     logger.debug('connect %s' % sid)
     sis = SocketIOServer(globals()["upstream_ip"], globals()["upstream_port"], sid, namespace, room,
-                         DataParser())
+                         globals()["data_parser"])
     sis.connect()
     sis.start()
     connect_pool[sid] = sis
@@ -141,10 +141,10 @@ def disconnect(sid):
         logger.warning("can't delete {%s,%s}" % (sid, sis))
 
 
-def main(ip="0.0.0.0", port=10010, upstream_ip="127.0.0.1", upstream_port=1080):
+def main(ip="0.0.0.0", port=10010, upstream_ip="127.0.0.1", upstream_port=1080, password='password'):
     globals()["upstream_ip"] = upstream_ip
     globals()["upstream_port"] = upstream_port
-    globals()["data_parser"] = DataParser()
+    globals()["data_parser"] = DataParser(password)
     logger.info("start server on %s:%d" % (ip, port))
     try:
         from geventwebsocket.handler import WebSocketHandler
