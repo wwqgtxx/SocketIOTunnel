@@ -10,6 +10,7 @@ from builtins import *
 
 from SocketIOTunnel.utils import logger, base64_encode, base64_decode, crc32
 from SocketIOTunnel.encrypt import encrypt_all, method_to_id, id_to_method
+import lz4
 
 
 class Encryptor(object):
@@ -36,9 +37,29 @@ class Encryptor(object):
         return plain
 
 
+class Compresstor(object):
+    def __init__(self, method="lz4"):
+        self.method = method
+
+    def compress(self, bytes_data):
+        if self.method == "lz4":
+            data = lz4.dumps(bytes_data)
+        else:
+            data = bytes_data
+        return data
+
+    def decompress(self, bytes_data):
+        if self.method == "lz4":
+            data = lz4.loads(bytes_data)
+        else:
+            data = bytes_data
+        return data
+
+
 class DataParser(object):
     def __init__(self, password, method=None):
         self.encryptor = Encryptor(password, method)
+        self.compresstor = Compresstor()
 
     def encode(self, bytes_data):
         if bytes_data:
@@ -50,6 +71,7 @@ class DataParser(object):
                 else:
                     is_encrypt = 0
                     data = bytes_data
+                data = self.compresstor.compress(data)
                 base64_data = base64_encode(data, return_type=str)
                 raw_crc = crc32(bytes_data)
                 crc = crc32(base64_data)
@@ -70,6 +92,7 @@ class DataParser(object):
                 if crc and crc != data_crc:
                     logger.warning("crc error!,<%08x>!=<%08x>" % (crc, data_crc))
                 bytes_data = base64_decode(base64_data, return_type=bytes)
+                bytes_data = self.compresstor.decompress(bytes_data)
                 if is_encrypt:
                     data = self.encryptor.decrypt(bytes_data)
                     # logger.info(data)
