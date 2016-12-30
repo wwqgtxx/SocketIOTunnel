@@ -15,24 +15,40 @@ try:
     from .utils import logger, base64_encode, base64_decode
 except SystemError:
     from utils import logger, base64_encode, base64_decode
-import flask
-import flask_socketio
+import socketio
 import socket
-import gevent
+from gevent import pywsgi
+import traceback
 import logging
 
-app = flask.Flask(__name__)
-socketio = flask_socketio.SocketIO(app, async_mode="gevent")
+sio = socketio.Server(async_mode="gevent")
+
 logging.getLogger("socketio").setLevel(logging.ERROR)
 logging.getLogger("engineio").setLevel(logging.ERROR)
+logging.getLogger("geventwebsocket.handler").setLevel(logging.ERROR)
 
 connect_pool = dict()
 
 
+class Middleware(socketio.Middleware):
+    def __call__(self, environ, start_response):
+        try:
+            return super(Middleware, self).__call__(environ, start_response)
+        except KeyError:
+            return
+        except:
+            logger.exception("%s" % environ)
+            start_response("503 Service Unavailable", [('Content-type', 'text/plain')])
+            return [traceback.format_exc()]
+
+
+app = Middleware(sio)
+
+
 class SocketIOServer(object):
-    def __init__(self, server_ip, server_port, sid, namespace, room):
-        self.server_ip = server_ip
-        self.server_port = server_port
+    def __init__(self, upstream_ip, upstream_port, sid, namespace, room):
+        self.upstream_ip = upstream_ip
+        self.upstream_port = upstream_port
         self.namespace = namespace
         self.sid = sid
         self.room = room
@@ -61,7 +77,7 @@ class SocketIOServer(object):
                 logger.debug("receive:%s" % data)
                 data = base64_encode(data)
                 # logger.info(data)
-                socketio.emit("data", data, namespace=self.namespace, room=self.room)
+                sio.emit("data", data, namespace=self.namespace, room=self.room)
                 # logger.info("finish to send to <%s,%s>" % (self.namespace, self.room))
         except ConnectionError:
             self.disconnect()
@@ -69,10 +85,10 @@ class SocketIOServer(object):
             self.disconnect()
 
     def start(self):
-        socketio.start_background_task(self._read_socket_thread)
+        sio.start_background_task(self._read_socket_thread)
 
     def connect(self):
-        self.socket.connect((self.server_ip, self.server_port))
+        self.socket.connect((self.upstream_ip, self.upstream_port))
 
     def message(self, data):
         data = base64_decode(data, bytes)
@@ -82,58 +98,59 @@ class SocketIOServer(object):
 
     def disconnect(self):
         if not self.disconnected:
-            logger.debug("close socket %s"%self.socket)
+            logger.debug("close socket %s" % self.socket)
             self.disconnected = True
             try:
                 self.socket.close()
             except:
                 logger.warning("error close socket", exc_info=True)
             try:
-                socketio.server.disconnect(self.sid,
-                                           namespace=self.namespace)
+                sio.disconnect(self.sid, namespace=self.namespace)
             except:
                 logger.warning("error close socketio", exc_info=True)
 
 
-
-@app.route('/')
-def index():
-    return ""
-
-
-@socketio.on('connect')
-def connect():
-    sid = flask.request.sid
-    namespace = flask.request.namespace
-    room = flask.request.sid
+@sio.on('connect')
+def connect(sid, environ):
+    namespace = '/'
+    room = sid
     logger.debug('connect %s' % sid)
-    sis = SocketIOServer(globals()["server_ip"], globals()["server_port"], sid, namespace, room)
+    sis = SocketIOServer(globals()["upstream_ip"], globals()["upstream_port"], sid, namespace, room)
     sis.connect()
     sis.start()
     connect_pool[sid] = sis
 
 
-@socketio.on('data')
-def data(data):
-    sid = flask.request.sid
+@sio.on('data')
+def data(sid, data):
     sis = connect_pool[sid]
     # logger.info(data)
     sis.message(data)
 
 
-@socketio.on('disconnect')
-def disconnect():
-    sid = flask.request.sid
+@sio.on('disconnect')
+def disconnect(sid):
     logger.debug('disconnect %s' % sid)
     sis = connect_pool[sid]
     sis.disconnect()
+    try:
+        connect_pool[sid] = None
+        del sis
+        del connect_pool[sid]
+    except KeyError:
+        logger.warning("can't delete {%s,%s}" % (sid, sis))
 
 
-def main(ip="0.0.0.0", port=10010, server_ip="127.0.0.1", server_port=1080):
-    globals()["server_ip"] = server_ip
-    globals()["server_port"] = server_port
+def main(ip="0.0.0.0", port=10010, upstream_ip="127.0.0.1", upstream_port=1080):
+    globals()["upstream_ip"] = upstream_ip
+    globals()["upstream_port"] = upstream_port
     logger.info("start server on %s:%d" % (ip, port))
-    socketio.run(app, host=ip, port=port, debug=False)
+    try:
+        from geventwebsocket.handler import WebSocketHandler
+    except ImportError:
+        WebSocketHandler = None
+        logger.warning("can't import WebSocketHandler!")
+    pywsgi.WSGIServer((ip, port), app, handler_class=WebSocketHandler).serve_forever()
 
 
 if __name__ == '__main__':

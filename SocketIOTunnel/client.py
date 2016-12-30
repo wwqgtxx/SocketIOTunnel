@@ -62,6 +62,7 @@ class SocketIOClient(object):
         self.socketIO.on('disconnect', self._on_disconnect)
         self.socketIO.on('reconnect', self._on_reconnect)
         self.socketIO.on('data', self._on_data)
+        logger.info("transport selected: %s" % self.socketIO.transport_name)
 
     def disconnect(self):
         if not self.disconnected:
