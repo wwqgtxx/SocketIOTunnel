@@ -20,8 +20,8 @@ except SystemError:
     from utils import logger, base64_encode, base64_decode
 import logging
 
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("socketIO-client").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.ERROR)
+logging.getLogger("socketIO-client").setLevel(logging.ERROR)
 
 
 class SocketIOClient(object):
@@ -38,7 +38,7 @@ class SocketIOClient(object):
 
     def _on_disconnect(self):
         if not self.disconnected:
-            logger.info("disconnect")
+            logger.debug("disconnect <%s>" % self.socket)
             self.disconnected = True
             self.socket.close()
 
@@ -47,10 +47,13 @@ class SocketIOClient(object):
 
     def _on_data(self, data):
         data = base64_decode(data, return_type=bytes)
-        logger.info("receive:%s" % data)
+        logger.debug("receive:%s" % data)
         try:
             self._write_socket(data)
-        except ConnectionAbortedError:
+        except OSError:
+            self.disconnect()
+        except:
+            logger.warning("error write socket", exc_info=True)
             self.disconnect()
 
     def connect(self):
@@ -62,9 +65,12 @@ class SocketIOClient(object):
 
     def disconnect(self):
         if not self.disconnected:
-            logger.info("disconnect")
+            logger.debug("disconnect <%s>" % self.socket)
             self.disconnected = True
-            self.socket.close()
+            try:
+                self.socket.close()
+            except:
+                logger.warning("error close socket", exc_info=True)
             self.socketIO.disconnect()
 
     def _read_socket(self, buffer_size=4096, need_decode=False, encoding="utf-8", errors="ignore"):
@@ -87,21 +93,24 @@ class SocketIOClient(object):
 
     def start(self):
         gevent.spawn(self._wait_message_thread)
-        while not self.disconnected:
-            data = self._read_socket()
-            logger.info("send %s" % data)
-            data = base64_encode(data)
-            self.socketIO.emit("data", data)
+        try:
+            while not self.disconnected:
+                data = self._read_socket()
+                logger.debug("send %s" % data)
+                data = base64_encode(data)
+                self.socketIO.emit("data", data)
+        except OSError:
+            self.disconnect()
 
 
 def socket_handle(socket, address):
-    logger.info("new client<%s> connect" % str(address))
+    logger.debug("new client<%s> connect" % str(address))
     sic = SocketIOClient(socket, address, globals()["server_ip"], globals()["server_port"])
     try:
         sic.connect()
         sic.start()
     except ConnectionError:
-        logger.info("client<%s> disconnect" % str(address))
+        logger.debug("client<%s> disconnect" % str(address))
     finally:
         sic.disconnect()
 

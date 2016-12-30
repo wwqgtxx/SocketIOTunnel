@@ -23,8 +23,8 @@ import logging
 
 app = flask.Flask(__name__)
 socketio = flask_socketio.SocketIO(app, async_mode="gevent")
-logging.getLogger("socketio").setLevel(logging.WARNING)
-logging.getLogger("engineio").setLevel(logging.WARNING)
+logging.getLogger("socketio").setLevel(logging.ERROR)
+logging.getLogger("engineio").setLevel(logging.ERROR)
 
 connect_pool = dict()
 
@@ -58,14 +58,14 @@ class SocketIOServer(object):
             while not self.disconnected:
                 # logger.info("start _read_socket")
                 data = self._read_socket()
-                logger.info("receive:%s" % data)
+                logger.debug("receive:%s" % data)
                 data = base64_encode(data)
                 # logger.info(data)
                 socketio.emit("data", data, namespace=self.namespace, room=self.room)
                 # logger.info("finish to send to <%s,%s>" % (self.namespace, self.room))
         except ConnectionError:
-            logger.info("disconnect")
-        finally:
+            self.disconnect()
+        except OSError:
             self.disconnect()
 
     def start(self):
@@ -76,17 +76,24 @@ class SocketIOServer(object):
 
     def message(self, data):
         data = base64_decode(data, bytes)
-        logger.info("send %s" % data)
+        logger.debug("send %s" % data)
         self._write_socket(data)
         # logger.info("finish _write_socket")
 
     def disconnect(self):
         if not self.disconnected:
-            logger.info("close socket")
+            logger.debug("close socket %s"%self.socket)
             self.disconnected = True
-            self.socket.close()
-            socketio.server.disconnect(self.sid,
-                                       namespace=self.namespace)
+            try:
+                self.socket.close()
+            except:
+                logger.warning("error close socket", exc_info=True)
+            try:
+                socketio.server.disconnect(self.sid,
+                                           namespace=self.namespace)
+            except:
+                logger.warning("error close socketio", exc_info=True)
+
 
 
 @app.route('/')
@@ -99,7 +106,7 @@ def connect():
     sid = flask.request.sid
     namespace = flask.request.namespace
     room = flask.request.sid
-    logger.info('connect %s' % sid)
+    logger.debug('connect %s' % sid)
     sis = SocketIOServer(globals()["server_ip"], globals()["server_port"], sid, namespace, room)
     sis.connect()
     sis.start()
@@ -117,7 +124,7 @@ def data(data):
 @socketio.on('disconnect')
 def disconnect():
     sid = flask.request.sid
-    logger.info('disconnect %s' % sid)
+    logger.debug('disconnect %s' % sid)
     sis = connect_pool[sid]
     sis.disconnect()
 
