@@ -11,10 +11,8 @@ from future import standard_library
 standard_library.install_aliases()
 from builtins import *
 
-try:
-    from .utils import logger, base64_encode, base64_decode
-except SystemError:
-    from utils import logger, base64_encode, base64_decode
+from SocketIOTunnel.utils import logger
+from SocketIOTunnel.dataparse import DataParser
 import socketio
 import socket
 from gevent import pywsgi
@@ -46,12 +44,13 @@ app = Middleware(sio)
 
 
 class SocketIOServer(object):
-    def __init__(self, upstream_ip, upstream_port, sid, namespace, room):
+    def __init__(self, upstream_ip, upstream_port, sid, namespace, room, data_parser):
         self.upstream_ip = upstream_ip
         self.upstream_port = upstream_port
         self.namespace = namespace
         self.sid = sid
         self.room = room
+        self.data_parser = data_parser
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.disconnected = False
 
@@ -75,7 +74,7 @@ class SocketIOServer(object):
                 # logger.info("start _read_socket")
                 data = self._read_socket()
                 logger.debug("receive:%s" % data)
-                data = base64_encode(data)
+                data = self.data_parser.encode(data)
                 # logger.info(data)
                 sio.emit("data", data, namespace=self.namespace, room=self.room)
                 # logger.info("finish to send to <%s,%s>" % (self.namespace, self.room))
@@ -91,7 +90,7 @@ class SocketIOServer(object):
         self.socket.connect((self.upstream_ip, self.upstream_port))
 
     def message(self, data):
-        data = base64_decode(data, bytes)
+        data = self.data_parser.decode(data)
         logger.debug("send %s" % data)
         self._write_socket(data)
         # logger.info("finish _write_socket")
@@ -115,7 +114,8 @@ def connect(sid, environ):
     namespace = '/'
     room = sid
     logger.debug('connect %s' % sid)
-    sis = SocketIOServer(globals()["upstream_ip"], globals()["upstream_port"], sid, namespace, room)
+    sis = SocketIOServer(globals()["upstream_ip"], globals()["upstream_port"], sid, namespace, room,
+                         DataParser())
     sis.connect()
     sis.start()
     connect_pool[sid] = sis
@@ -144,6 +144,7 @@ def disconnect(sid):
 def main(ip="0.0.0.0", port=10010, upstream_ip="127.0.0.1", upstream_port=1080):
     globals()["upstream_ip"] = upstream_ip
     globals()["upstream_port"] = upstream_port
+    globals()["data_parser"] = DataParser()
     logger.info("start server on %s:%d" % (ip, port))
     try:
         from geventwebsocket.handler import WebSocketHandler

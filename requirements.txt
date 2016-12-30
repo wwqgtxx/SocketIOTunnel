@@ -4,3 +4,4 @@ socketIO-client>=0.7.2
 python-socketio>=1.6.1
 karellen-geventws>=1.0.1 ; python_version > '3.2'
 gevent-websocket ; python_version < '3'
+PyCRC>=1.21

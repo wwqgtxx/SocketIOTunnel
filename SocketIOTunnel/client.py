@@ -14,10 +14,9 @@ import gevent
 from gevent.server import StreamServer
 from socketIO_client import SocketIO, LoggingNamespace
 
-try:
-    from .utils import logger, base64_encode, base64_decode
-except SystemError:
-    from utils import logger, base64_encode, base64_decode
+
+from SocketIOTunnel.utils import logger
+from SocketIOTunnel.dataparse import DataParser
 import logging
 
 logging.getLogger("requests").setLevel(logging.ERROR)
@@ -25,11 +24,12 @@ logging.getLogger("socketIO-client").setLevel(logging.ERROR)
 
 
 class SocketIOClient(object):
-    def __init__(self, socket, address, server_ip, server_port):
+    def __init__(self, socket, address, server_ip, server_port,data_parser):
         self.socket = socket
         self.address = address
         self.server_ip = server_ip
         self.server_port = server_port
+        self.data_parser = data_parser
         self.socketIO = None
         self.disconnected = False
 
@@ -46,7 +46,7 @@ class SocketIOClient(object):
         pass
 
     def _on_data(self, data):
-        data = base64_decode(data, return_type=bytes)
+        data = self.data_parser.decode(data)
         logger.debug("receive:%s" % data)
         try:
             self._write_socket(data)
@@ -62,7 +62,7 @@ class SocketIOClient(object):
         self.socketIO.on('disconnect', self._on_disconnect)
         self.socketIO.on('reconnect', self._on_reconnect)
         self.socketIO.on('data', self._on_data)
-        logger.info("transport selected: %s" % self.socketIO.transport_name)
+        logger.debug("transport selected: %s" % self.socketIO.transport_name)
 
     def disconnect(self):
         if not self.disconnected:
@@ -98,7 +98,7 @@ class SocketIOClient(object):
             while not self.disconnected:
                 data = self._read_socket()
                 logger.debug("send %s" % data)
-                data = base64_encode(data)
+                data = self.data_parser.encode(data)
                 self.socketIO.emit("data", data)
         except OSError:
             self.disconnect()
@@ -106,7 +106,7 @@ class SocketIOClient(object):
 
 def socket_handle(socket, address):
     logger.debug("new client<%s> connect" % str(address))
-    sic = SocketIOClient(socket, address, globals()["server_ip"], globals()["server_port"])
+    sic = SocketIOClient(socket, address, globals()["server_ip"], globals()["server_port"],globals()["data_parser"])
     try:
         sic.connect()
         sic.start()
@@ -119,6 +119,7 @@ def socket_handle(socket, address):
 def main(ip="0.0.0.0", port=10011, server_ip="127.0.0.1", server_port=10010):
     globals()["server_ip"] = server_ip
     globals()["server_port"] = server_port
+    globals()["data_parser"] = DataParser()
     logger.info("start client on %s:%d" % (ip, port))
     server = StreamServer((ip, port), socket_handle)
     server.init_socket()
