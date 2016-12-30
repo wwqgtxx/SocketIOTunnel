@@ -39,12 +39,21 @@ try:
     crc16sick = PyCRC.CRC16SICK.CRC16SICK().calculate
     crccitt = PyCRC.CRCCCITT.CRCCCITT().calculate
 except ImportError:
-    crc16 = None
-    crc32 = None
-    crc16dnp = None
-    crc16kermit = None
-    crc16sick = None
-    crccitt = None
+    logger.warning("can't import PyCRC!")
+    def _crc16(input_data):
+        return 0x0000
+
+
+    def _crc32(input_data):
+        return 0x00000000
+
+
+    crc16 = _crc16
+    crc32 = _crc32
+    crc16dnp = _crc16
+    crc16kermit = _crc16
+    crc16sick = _crc16
+    crccitt = _crc16
 
 
 def base64_encode(input_data, return_type=str, encoding="utf-8"):

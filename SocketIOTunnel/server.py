@@ -150,7 +150,7 @@ def main(ip="0.0.0.0", port=10010, upstream_ip="127.0.0.1", upstream_port=1080):
         from geventwebsocket.handler import WebSocketHandler
     except ImportError:
         WebSocketHandler = None
-        logger.warning("can't import WebSocketHandler!")
+        logger.warning("can't import geventwebsocket.handler.WebSocketHandler!")
     pywsgi.WSGIServer((ip, port), app, handler_class=WebSocketHandler).serve_forever()
 
 

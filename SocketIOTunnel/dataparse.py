@@ -58,7 +58,7 @@ class DataParser(object):
                 raw_crc = int(str_data[8:16], 16)
                 base64_data = str_data[16:]
                 data_crc = crc32(base64_data)
-                if crc != data_crc:
+                if crc and crc != data_crc:
                     logger.warning("crc error!,<%08x>!=<%08x>" % (crc, data_crc))
                 bytes_data = base64_decode(base64_data, return_type=bytes)
                 if self.encryptor:
@@ -69,7 +69,7 @@ class DataParser(object):
                     else:
                         bytes_data = data
                 raw_data_crc = crc32(bytes_data)
-                if raw_crc != raw_data_crc:
+                if raw_crc and raw_crc != raw_data_crc:
                     logger.warning("crc error!,<%08x>!=<%08x>" % (raw_crc, raw_data_crc))
                 return bytes_data
             except:
