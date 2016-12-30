@@ -1,0 +1,7 @@
+future>=0.16.0
+gevent>=1.1.2
+socketIO-client>=0.7.2
+flask>=0.11.1
+flask-socketio>=2.8.2
+karellen-geventws>=1.0.1 ; python_version > '3.2'
+gevent-websocket ; python_version < '3'
