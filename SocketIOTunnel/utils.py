@@ -40,6 +40,8 @@ try:
     crccitt = PyCRC.CRCCCITT.CRCCCITT().calculate
 except ImportError:
     logger.warning("can't import PyCRC!")
+
+
     def _crc16(input_data):
         return 0x0000
 
@@ -82,6 +84,38 @@ def base64_decode(input_data, return_type=str, encoding="utf-8"):
     else:
         bytes_string = input_data.encode(encoding=encoding)
     result = base64.b64decode(bytes_string)
+    if return_type is str:
+        return result.decode()
+    else:
+        return result
+
+
+def base85_encode(input_data, return_type=str, encoding="utf-8"):
+    is_string = isinstance(input_data, str)
+    is_bytes = isinstance(input_data, bytes)
+    if not is_string and not is_bytes:
+        raise Exception("Please provide a string or a byte sequence ")
+    if is_bytes:
+        bytes_string = input_data
+    else:
+        bytes_string = input_data.encode(encoding=encoding)
+    result = base64.b85encode(bytes_string)
+    if return_type is str:
+        return result.decode()
+    else:
+        return result
+
+
+def base85_decode(input_data, return_type=str, encoding="utf-8"):
+    is_string = isinstance(input_data, str)
+    is_bytes = isinstance(input_data, bytes)
+    if not is_string and not is_bytes:
+        raise Exception("Please provide a string or a byte sequence ")
+    if is_bytes:
+        bytes_string = input_data
+    else:
+        bytes_string = input_data.encode(encoding=encoding)
+    result = base64.b85decode(bytes_string)
     if return_type is str:
         return result.decode()
     else:
