@@ -108,6 +108,9 @@ class SocketIOServer(object):
             except:
                 logger.warning("error close socketio", exc_info=True)
 
+    def __del__(self):
+        self.disconnect()
+
 
 @sio.on('connect')
 def connect(sid, environ):
@@ -123,9 +126,14 @@ def connect(sid, environ):
 
 @sio.on('data')
 def data(sid, data):
-    sis = connect_pool[sid]
-    # logger.info(data)
-    sis.message(data)
+    sis = connect_pool.get(sid, None)
+    if sis and not sis.disconnected:
+        # logger.info(data)
+        sis.message(data)
+    else:
+        connect_pool[sid] = None
+        del connect_pool[sid]
+        sio.disconnect(sid=sid)
 
 
 @sio.on('disconnect')
@@ -135,7 +143,6 @@ def disconnect(sid):
     sis.disconnect()
     try:
         connect_pool[sid] = None
-        del sis
         del connect_pool[sid]
     except KeyError:
         logger.warning("can't delete {%s,%s}" % (sid, sis))
@@ -158,7 +165,6 @@ def main(ip="0.0.0.0", port=10010, upstream_ip="127.0.0.1", upstream_port=1080, 
     globals()["upstream_ip"] = args.upstream_ip
     globals()["upstream_port"] = args.upstream_port
     globals()["password"] = args.password
-    globals()["data_parser"] = DataParser(args.password)
     logger.info("start server on %s:%d" % (args.ip, args.port))
     try:
         from geventwebsocket.handler import WebSocketHandler
