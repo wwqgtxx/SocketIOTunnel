@@ -6,3 +6,4 @@ karellen-geventws>=1.0.1 ; python_version > '3.2'
 gevent-websocket ; python_version < '3'
 PyCRC>=1.21
 lz4>=0.8.2
+pyaes<=1.6.0
