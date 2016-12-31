@@ -45,6 +45,8 @@ try:
     method_supported.update(rc4_md5.ciphers)
 except ImportError:
     logger.warning("can't load openssl!")
+    from SocketIOTunnel.crypto import pyaes
+    method_supported.update(pyaes.ciphers)
 try:
     sodium.load_libsodium()
     method_supported.update(sodium.ciphers)

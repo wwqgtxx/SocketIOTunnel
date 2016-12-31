@@ -18,7 +18,7 @@ from __future__ import absolute_import, division, print_function, \
     with_statement
 
 import os
-import logging
+from SocketIOTunnel.utils import logger
 
 
 def find_library_nt(name):
@@ -82,10 +82,10 @@ def find_library(possible_lib_names, search_symbol, library_name):
         try:
             lib = CDLL(path)
             if hasattr(lib, search_symbol):
-                logging.info('loading %s from %s', library_name, path)
+                logger.info('loading %s from %s', library_name, path)
                 return lib
             else:
-                logging.warning('can\'t find symbol %s in %s', search_symbol,
+                logger.warning('can\'t find symbol %s in %s', search_symbol,
                              path)
         except Exception:
             if path == paths[-1]:

@@ -16,12 +16,14 @@ import struct
 
 class Encryptor(object):
     def __init__(self, password, method=None):
+        if isinstance(password, str):
+            password = password.encode()
         self.password = password
         self.method = method
 
     def encrypt(self, bytes_data):
         if not self.method:
-            method = 'aes-256-cfb'
+            method = 'aes-256-ofb'
         else:
             method = self.method
         plain = bytes_data
@@ -34,6 +36,7 @@ class Encryptor(object):
         method = id_to_method[struct.unpack("!B", bytes_data[:1])[0]]
         if not self.method:
             self.method = method
+            logger.info("auto set encrypt method: %s" % method)
         cipher = bytes_data[1:]
         plain = encrypt_all(self.password, method, 0, cipher)
         return plain
@@ -77,6 +80,7 @@ class Encoder(object):
 
 class DataParser(object):
     def __init__(self, password, method=None):
+        logger.info("use encrypt method: %s" % method)
         self.encryptor = Encryptor(password, method)
         self.compresstor = Compresstor()
         self.encoder = Encoder()
@@ -95,9 +99,9 @@ class DataParser(object):
                 head = struct.pack(">IB", raw_crc, is_encrypt)
                 data = head + data
                 data = self.compresstor.compress(data)
-                base64_data = self.encoder.encode(data, return_type=str)
-                crc = crc32(base64_data)
-                str_data = "%08x%s" % (crc, base64_data)
+                encode_data = self.encoder.encode(data, return_type=str)
+                crc = crc32(encode_data)
+                str_data = "%08x%s" % (crc, encode_data)
                 return str_data
             except:
                 logger.exception("encode error!")
@@ -108,11 +112,11 @@ class DataParser(object):
             try:
                 # length0 = len(str_data)
                 crc = int(str_data[:8], 16)
-                base64_data = str_data[8:]
-                data_crc = crc32(base64_data)
+                encode_data = str_data[8:]
+                data_crc = crc32(encode_data)
                 if crc and crc != data_crc:
                     logger.warning("crc error!,<%08x>!=<%08x>" % (crc, data_crc))
-                bytes_data = self.encoder.decode(base64_data, return_type=bytes)
+                bytes_data = self.encoder.decode(encode_data, return_type=bytes)
                 bytes_data = self.compresstor.decompress(bytes_data)
                 raw_crc, is_encrypt = struct.unpack(">IB", bytes_data[:5])
                 bytes_data = bytes_data[5:]

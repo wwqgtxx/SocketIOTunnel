@@ -17,6 +17,7 @@ from socketIO_client import SocketIO, LoggingNamespace
 from SocketIOTunnel.utils import logger
 from SocketIOTunnel.dataparse import DataParser
 import logging
+from argparse import ArgumentParser
 
 logging.getLogger("requests").setLevel(logging.ERROR)
 logging.getLogger("socketIO-client").setLevel(logging.ERROR)
@@ -115,12 +116,27 @@ def socket_handle(socket, address):
         sic.disconnect()
 
 
-def main(ip="0.0.0.0", port=10011, server_ip="127.0.0.1", server_port=10010, password='password', method='chacha20'):
-    globals()["server_ip"] = server_ip
-    globals()["server_port"] = server_port
-    globals()["data_parser"] = DataParser(password=password, method=method)
-    logger.info("start client on %s:%d" % (ip, port))
-    server = StreamServer((ip, port), socket_handle)
+def main(ip="0.0.0.0", port=10011, server_ip="127.0.0.1", server_port=10010, password='password', method='aes-256-ofb'):
+    parser = ArgumentParser(description="SocketIOTunnel Client")
+    parser.add_argument('--ip', type=str, default=ip,
+                        help="set listening ip")
+    parser.add_argument('--port', type=int, default=port,
+                        help="set listening port")
+    parser.add_argument('--server_ip', type=str, default=server_ip,
+                        help="set server ip")
+    parser.add_argument('--server_port', type=int, default=server_port,
+                        help="set server port")
+    parser.add_argument('--password', type=str, default=password,
+                        help="the password used to connect")
+    parser.add_argument('--method', type=str, default=method,
+                        help="the encrypt method used to connect")
+
+    args = parser.parse_args()
+    globals()["server_ip"] = args.server_ip
+    globals()["server_port"] = args.server_port
+    globals()["data_parser"] = DataParser(password=args.password, method=args.method)
+    logger.info("start client on %s:%d" % (args.ip, args.port))
+    server = StreamServer((args.ip, args.port), socket_handle)
     server.init_socket()
     server.serve_forever()
 

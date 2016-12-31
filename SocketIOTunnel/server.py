@@ -18,12 +18,12 @@ import socket
 from gevent import pywsgi
 import traceback
 import logging
-
-sio = socketio.Server(async_mode="gevent")
+from argparse import ArgumentParser
 
 logging.getLogger("socketio").setLevel(logging.ERROR)
 logging.getLogger("engineio").setLevel(logging.ERROR)
 logging.getLogger("geventwebsocket.handler").setLevel(logging.ERROR)
+sio = socketio.Server(async_mode="gevent")
 
 connect_pool = dict()
 
@@ -115,7 +115,7 @@ def connect(sid, environ):
     room = sid
     logger.debug('connect %s' % sid)
     sis = SocketIOServer(globals()["upstream_ip"], globals()["upstream_port"], sid, namespace, room,
-                         globals()["data_parser"])
+                         DataParser(globals()["password"]))
     sis.connect()
     sis.start()
     connect_pool[sid] = sis
@@ -142,16 +142,30 @@ def disconnect(sid):
 
 
 def main(ip="0.0.0.0", port=10010, upstream_ip="127.0.0.1", upstream_port=1080, password='password'):
-    globals()["upstream_ip"] = upstream_ip
-    globals()["upstream_port"] = upstream_port
-    globals()["data_parser"] = DataParser(password)
-    logger.info("start server on %s:%d" % (ip, port))
+    parser = ArgumentParser(description="SocketIOTunnel Server")
+    parser.add_argument('--ip', type=str, default=ip,
+                        help="set listening ip")
+    parser.add_argument('--port', type=int, default=port,
+                        help="set listening port")
+    parser.add_argument('--upstream_ip', type=str, default=upstream_ip,
+                        help="set upstream ip")
+    parser.add_argument('--upstream_port', type=int, default=upstream_port,
+                        help="set upstream port")
+    parser.add_argument('--password', type=str, default=password,
+                        help="the password used to connect")
+
+    args = parser.parse_args()
+    globals()["upstream_ip"] = args.upstream_ip
+    globals()["upstream_port"] = args.upstream_port
+    globals()["password"] = args.password
+    globals()["data_parser"] = DataParser(args.password)
+    logger.info("start server on %s:%d" % (args.ip, args.port))
     try:
         from geventwebsocket.handler import WebSocketHandler
     except ImportError:
         WebSocketHandler = None
         logger.warning("can't import geventwebsocket.handler.WebSocketHandler!")
-    pywsgi.WSGIServer((ip, port), app, handler_class=WebSocketHandler).serve_forever()
+    pywsgi.WSGIServer((args.ip, args.port), app, handler_class=WebSocketHandler).serve_forever()
 
 
 if __name__ == '__main__':
