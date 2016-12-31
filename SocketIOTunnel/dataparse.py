@@ -51,9 +51,9 @@ class Encryptor(object):
             raise UnsupportEncryptMethod()
         if not method_supported.get(method, None):
             raise UnsupportEncryptMethod(method)
-        if not self.method:
+        if not self.method and method != 'aes-256-ofb':
             self.method = method
-            logger.info("auto set encrypt method: %s" % method)
+            # logger.info("auto set encrypt method: %s" % method)
         cipher = bytes_data[1:]
         plain = encrypt_all(self.password, method, 0, cipher)
         return plain
@@ -97,10 +97,16 @@ class Encoder(object):
 
 class DataParser(object):
     def __init__(self, password, method=None):
-        logger.info("use encrypt method: %s" % method)
+        self.password = password
+        self.method = method
         self.encryptor = Encryptor(password, method)
         self.compresstor = Compresstor()
         self.encoder = Encoder()
+
+    def set_method(self, method):
+        # logger.info("set encrypt method: %s" % method)
+        self.method = method
+        self.encryptor = Encryptor(self.password, method)
 
     def encode(self, bytes_data):
         if bytes_data:

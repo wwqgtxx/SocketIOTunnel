@@ -13,6 +13,7 @@ from builtins import *
 
 from SocketIOTunnel.utils import logger
 from SocketIOTunnel.dataparse import DataParser
+from SocketIOTunnel.encrypt import method_supported
 import socketio
 import socket
 from gevent import pywsgi
@@ -95,6 +96,14 @@ class SocketIOServer(object):
         self._write_socket(data)
         # logger.info("finish _write_socket")
 
+    def method(self, data):
+        method = self.data_parser.decode(data).decode()
+        if method_supported.get(str(method), None):
+            self.data_parser.set_method(method)
+            return "ok"
+        else:
+            return "no"
+
     def disconnect(self):
         if not self.disconnected:
             logger.debug("close socket %s" % self.socket)
@@ -122,6 +131,18 @@ def connect(sid, environ):
     sis.connect()
     sis.start()
     connect_pool[sid] = sis
+
+
+@sio.on('method')
+def method(sid, data):
+    sis = connect_pool.get(sid, None)
+    if sis and not sis.disconnected:
+        # logger.info(data)
+        return sis.method(data)
+    else:
+        connect_pool[sid] = None
+        del connect_pool[sid]
+        sio.disconnect(sid=sid)
 
 
 @sio.on('data')

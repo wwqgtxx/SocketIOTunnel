@@ -13,7 +13,7 @@ from builtins import *
 import gevent
 from gevent.server import StreamServer
 from socketIO_client import SocketIO, LoggingNamespace
-
+from SocketIOTunnel.encrypt import method_supported
 from SocketIOTunnel.utils import logger
 from SocketIOTunnel.dataparse import DataParser
 import logging
@@ -24,12 +24,14 @@ logging.getLogger("socketIO-client").setLevel(logging.ERROR)
 
 
 class SocketIOClient(object):
-    def __init__(self, socket, address, server_ip, server_port, data_parser):
+    def __init__(self, socket, address, server_ip, server_port, password, method):
         self.socket = socket
         self.address = address
         self.server_ip = server_ip
         self.server_port = server_port
-        self.data_parser = data_parser
+        self.password = password
+        self.method = method
+        self.data_parser = DataParser(password, globals()["server_support_method"])
         self.socketIO = None
         self.disconnected = False
 
@@ -92,7 +94,23 @@ class SocketIOClient(object):
         while not self.disconnected:
             self.socketIO.wait()
 
+    def _set_method(self, data):
+        if data == "ok":
+            self.data_parser.set_method(self.method)
+            globals()["server_support_method"] = self.method
+            logger.info("get server support your method %s" % self.method)
+        else:
+            logger.warning("server not support your method %s ,force set aes-256-ofb" % self.method)
+            self.data_parser.set_method("aes-256-ofb")
+            self.method = 'aes-256-ofb'
+            globals()["method"] = 'aes-256-ofb'
+            globals()["server_support_method"] = 'aes-256-ofb'
+
     def start(self):
+        if not globals()["server_support_method"] and self.method != 'aes-256-ofb':
+            data = self.data_parser.encode(self.method.encode())
+            self.socketIO.emit("method", data, self._set_method)
+            self.socketIO.wait_for_callbacks()
         gevent.spawn(self._wait_message_thread)
         try:
             while not self.disconnected:
@@ -106,7 +124,8 @@ class SocketIOClient(object):
 
 def socket_handle(socket, address):
     logger.debug("new client<%s> connect" % str(address))
-    sic = SocketIOClient(socket, address, globals()["server_ip"], globals()["server_port"], globals()["data_parser"])
+    sic = SocketIOClient(socket, address, globals()["server_ip"], globals()["server_port"], globals()["password"],
+                         globals()["method"])
     try:
         sic.connect()
         sic.start()
@@ -116,7 +135,7 @@ def socket_handle(socket, address):
         sic.disconnect()
 
 
-def main(ip="0.0.0.0", port=10011, server_ip="127.0.0.1", server_port=10010, password='password', method='aes-256-ofb'):
+def main(ip="0.0.0.0", port=10011, server_ip="127.0.0.1", server_port=10010, password='password', method='aes-256-cfb'):
     parser = ArgumentParser(description="SocketIOTunnel Client")
     parser.add_argument('--ip', type=str, default=ip,
                         help="set listening ip")
@@ -134,7 +153,13 @@ def main(ip="0.0.0.0", port=10011, server_ip="127.0.0.1", server_port=10010, pas
     args = parser.parse_args()
     globals()["server_ip"] = args.server_ip
     globals()["server_port"] = args.server_port
-    globals()["data_parser"] = DataParser(password=args.password, method=args.method)
+    globals()["password"] = args.password
+    if method_supported.get(args.method, None):
+        globals()["method"] = args.method
+    else:
+        logger.warning("client not support your method %s ,force set to aes-256-cfb" % args.method)
+        globals()["method"] = 'aes-256-ofb'
+    globals()["server_support_method"] = None
     logger.info("start client on %s:%d" % (args.ip, args.port))
     server = StreamServer((args.ip, args.port), socket_handle)
     server.init_socket()
