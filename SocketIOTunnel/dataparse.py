@@ -9,9 +9,21 @@ standard_library.install_aliases()
 from builtins import *
 
 from SocketIOTunnel.utils import logger, base64_encode, base64_decode, base85_encode, base85_decode, crc32
-from SocketIOTunnel.encrypt import encrypt_all, method_to_id, id_to_method
+from SocketIOTunnel.encrypt import encrypt_all, method_to_id, id_to_method, method_supported
 import lz4
 import struct
+
+
+class DataParseError(RuntimeError):
+    pass
+
+
+class UnsupportEncryptMethod(DataParseError):
+    pass
+
+
+class CRCError(DataParseError):
+    pass
 
 
 class Encryptor(object):
@@ -33,7 +45,12 @@ class Encryptor(object):
         return data
 
     def decrypt(self, bytes_data):
-        method = id_to_method[struct.unpack("!B", bytes_data[:1])[0]]
+        try:
+            method = id_to_method[struct.unpack("!B", bytes_data[:1])[0]]
+        except:
+            raise UnsupportEncryptMethod()
+        if not method_supported.get(method, None):
+            raise UnsupportEncryptMethod(method)
         if not self.method:
             self.method = method
             logger.info("auto set encrypt method: %s" % method)
@@ -115,7 +132,7 @@ class DataParser(object):
                 encode_data = str_data[8:]
                 data_crc = crc32(encode_data)
                 if crc and crc != data_crc:
-                    logger.warning("crc error!,<%08x>!=<%08x>" % (crc, data_crc))
+                    raise CRCError("crc error!,<%08x>!=<%08x>" % (crc, data_crc))
                 bytes_data = self.encoder.decode(encode_data, return_type=bytes)
                 bytes_data = self.compresstor.decompress(bytes_data)
                 raw_crc, is_encrypt = struct.unpack(">IB", bytes_data[:5])
@@ -129,10 +146,12 @@ class DataParser(object):
                         bytes_data = data
                 raw_data_crc = crc32(bytes_data)
                 if raw_crc and raw_crc != raw_data_crc:
-                    logger.warning("crc error!,<%08x>!=<%08x>" % (raw_crc, raw_data_crc))
+                    raise CRCError("crc error!,<%08x>!=<%08x>" % (raw_crc, raw_data_crc))
                 # length1 = len(bytes_data)
                 # logger.info("%.02f%%" % (length0 / length1 * 100))
                 return bytes_data
+            except DataParseError as e:
+                raise e
             except:
                 logger.exception("decode error!")
         return b''
