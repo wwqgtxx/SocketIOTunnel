@@ -105,19 +105,22 @@ class DataParser(object):
         "encrypt_handshake": 2,
     }
 
-    def __init__(self, password, method=None):
+    def __init__(self, password, method=None, encode_return_type=bytes):
         self.password = password
         self.method = method
         self.encryptor = Encryptor(password, method)
         self.compresstor = Compresstor()
         self.encoder = Encoder()
+        self.encode_return_type = encode_return_type
 
     def set_method(self, method):
         # logger.info("set encrypt method: %s" % method)
         self.method = method
         self.encryptor = Encryptor(self.password, method)
 
-    def encode(self, bytes_data, bytes_data_type=None, return_type=bytes):
+    def encode(self, bytes_data, bytes_data_type=None, return_type=None):
+        if not return_type:
+            return_type = self.encode_return_type
         if bytes_data:
             try:
                 if self.encryptor and bytes_data_type != DataParser.DATA_TYPE["raw_data"]:
@@ -177,6 +180,9 @@ class DataParser(object):
                 bytes_data = self.compresstor.decompress(bytes_data)
                 raw_crc, data_type = struct.unpack(">IB", bytes_data[:5])
                 bytes_data = bytes_data[5:]
+                if data_type == DataParser.DATA_TYPE["encrypt_handshake"]:
+                    if isinstance(input_data, str):
+                        self.encode_return_type = str
                 if not data_type == DataParser.DATA_TYPE["raw_data"]:
                     data = self.encryptor.decrypt(bytes_data)
                     # logger.info(data)

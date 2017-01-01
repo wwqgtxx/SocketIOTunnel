@@ -29,6 +29,7 @@ except ImportError:
         pass
 
 import websocket
+
 websocket.SSLError = SSLError
 
 
@@ -107,7 +108,7 @@ class SocketIOClient(object):
             try:
                 self.socketIO.wait()
             except IndexError:
-                logger.warning("IndexError",exc_info=True)
+                logger.warning("IndexError", exc_info=True)
 
     def _set_method(self, data):
         if data == "ok":
@@ -122,9 +123,10 @@ class SocketIOClient(object):
             globals()["server_support_method"] = BASE_ENCRYPT_METHOD
 
     def _send_data_to_server(self, bytes_data, bytes_data_type=None):
-        bytes_data = self.data_parser.encode(bytes_data, bytes_data_type)
-        bytes_data = bytearray(bytes_data)
-        self.socketIO.emit("data", bytes_data)
+        return_data = self.data_parser.encode(bytes_data, bytes_data_type)
+        if isinstance(return_data, bytes):
+            return_data = bytearray(return_data)
+        self.socketIO.emit("data", return_data)
 
     def start(self):
         if not globals()["server_support_method"] and self.method != BASE_ENCRYPT_METHOD:
