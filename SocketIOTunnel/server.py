@@ -75,14 +75,17 @@ class SocketIOServer(object):
                 # logger.info("start _read_socket")
                 data = self._read_socket()
                 logger.debug("receive:%s" % data)
-                data = self.data_parser.encode(data)
-                # logger.info(data)
-                sio.emit("data", data, namespace=self.namespace, room=self.room)
-                # logger.info("finish to send to <%s,%s>" % (self.namespace, self.room))
+                self._send_data_to_client(data)
         except ConnectionError:
             self.disconnect()
         except OSError:
             self.disconnect()
+
+    def _send_data_to_client(self, bytes_data, bytes_data_type=None):
+        str_data = self.data_parser.encode(bytes_data, bytes_data_type)
+        # logger.info(data)
+        sio.emit("data", str_data, namespace=self.namespace, room=self.room)
+        # logger.info("finish to send to <%s,%s>" % (self.namespace, self.room))
 
     def start(self):
         sio.start_background_task(self._read_socket_thread)
@@ -91,18 +94,20 @@ class SocketIOServer(object):
         self.socket.connect((self.upstream_ip, self.upstream_port))
 
     def message(self, data):
-        data = self.data_parser.decode(data)
-        logger.debug("send %s" % data)
-        self._write_socket(data)
-        # logger.info("finish _write_socket")
-
-    def method(self, data):
-        method = self.data_parser.decode(data).decode()
-        if method_supported.get(str(method), None):
-            self.data_parser.set_method(method)
-            return "ok"
-        else:
-            return "no"
+        bytes_data, data_type = self.data_parser.decode(data)
+        if data_type == DataParser.DATA_TYPE["encrypt_handshake"]:
+            logger.debug("reecive client encrypt_handshake")
+            method = bytes_data.decode()
+            if method_supported.get(str(method), None):
+                self.data_parser.set_method(method)
+                self._send_data_to_client(b"ok", DataParser.DATA_TYPE["encrypt_handshake"])
+            else:
+                self._send_data_to_client(b"no", DataParser.DATA_TYPE["encrypt_handshake"])
+            return
+        if bytes_data:
+            logger.debug("send %s" % bytes_data)
+            self._write_socket(bytes_data)
+            # logger.info("finish _write_socket")
 
     def disconnect(self):
         if not self.disconnected:
@@ -131,18 +136,6 @@ def connect(sid, environ):
     sis.connect()
     sis.start()
     connect_pool[sid] = sis
-
-
-@sio.on('method')
-def method(sid, data):
-    sis = connect_pool.get(sid, None)
-    if sis and not sis.disconnected:
-        # logger.info(data)
-        return sis.method(data)
-    else:
-        connect_pool[sid] = None
-        del connect_pool[sid]
-        sio.disconnect(sid=sid)
 
 
 @sio.on('data')

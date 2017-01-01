@@ -99,6 +99,12 @@ class Encoder(object):
 
 
 class DataParser(object):
+    DATA_TYPE = {
+        "raw_data": 0,
+        "encrypt_data": 1,
+        "encrypt_handshake": 2,
+    }
+
     def __init__(self, password, method=None):
         self.password = password
         self.method = method
@@ -111,18 +117,20 @@ class DataParser(object):
         self.method = method
         self.encryptor = Encryptor(self.password, method)
 
-    def encode(self, bytes_data):
+    def encode(self, bytes_data, bytes_data_type=None):
         if bytes_data:
             try:
-                if self.encryptor:
-                    is_encrypt = 1
+                if self.encryptor and bytes_data_type != DataParser.DATA_TYPE["raw_data"]:
+                    data_type = DataParser.DATA_TYPE["encrypt_data"]
                     data = self.encryptor.encrypt(bytes_data)
                     # logger.info(data)
                 else:
-                    is_encrypt = 0
+                    data_type = DataParser.DATA_TYPE["raw_data"]
                     data = bytes_data
+                if bytes_data_type:
+                    data_type = bytes_data_type
                 raw_crc = crc32(bytes_data)
-                head = struct.pack(">IB", raw_crc, is_encrypt)
+                head = struct.pack(">IB", raw_crc, data_type)
                 data = head + data
                 data = self.compresstor.compress(data)
                 encode_data = self.encoder.encode(data, return_type=str)
@@ -149,9 +157,9 @@ class DataParser(object):
                     raise CRCError("crc error!,<%08x>!=<%08x>" % (crc, data_crc))
                 bytes_data = self.encoder.decode(encode_data, return_type=bytes)
                 bytes_data = self.compresstor.decompress(bytes_data)
-                raw_crc, is_encrypt = struct.unpack(">IB", bytes_data[:5])
+                raw_crc, data_type = struct.unpack(">IB", bytes_data[:5])
                 bytes_data = bytes_data[5:]
-                if is_encrypt:
+                if not data_type == DataParser.DATA_TYPE["raw_data"]:
                     data = self.encryptor.decrypt(bytes_data)
                     # logger.info(data)
                     if isinstance(data, str):
@@ -163,9 +171,9 @@ class DataParser(object):
                     raise CRCError("crc error!,<%08x>!=<%08x>,raw data is:%s" % (raw_crc, raw_data_crc, bytes_data))
                 # length1 = len(bytes_data)
                 # logger.info("%.02f%%" % (length0 / length1 * 100))
-                return bytes_data
+                return bytes_data, data_type
             # except DataParseError as e:
             #     raise e
             except:
                 logger.exception("decode error!")
-        return b''
+        return b'', DataParser.DATA_TYPE["raw_data"]

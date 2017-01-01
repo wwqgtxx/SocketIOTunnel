@@ -48,15 +48,18 @@ class SocketIOClient(object):
         pass
 
     def _on_data(self, data):
-        data = self.data_parser.decode(data)
-        logger.debug("receive:%s" % data)
-        try:
-            self._write_socket(data)
-        except OSError:
-            self.disconnect()
-        except:
-            logger.warning("error write socket", exc_info=True)
-            self.disconnect()
+        bytes_data, data_type = self.data_parser.decode(data)
+        if data_type == DataParser.DATA_TYPE["encrypt_handshake"]:
+            self._set_method(bytes_data.decode())
+        if bytes_data:
+            logger.debug("receive:%s" % bytes_data)
+            try:
+                self._write_socket(bytes_data)
+            except OSError:
+                self.disconnect()
+            except:
+                logger.warning("error write socket", exc_info=True)
+                self.disconnect()
 
     def connect(self):
         self.socketIO = SocketIO(self.server_ip, self.server_port, LoggingNamespace)
@@ -98,7 +101,7 @@ class SocketIOClient(object):
         if data == "ok":
             self.data_parser.set_method(self.method)
             globals()["server_support_method"] = self.method
-            logger.info("get server support your method %s" % self.method)
+            logger.info("get server support your method ,set encrypt method to %s" % self.method)
         else:
             logger.warning("server not support your method %s ,force set %s" % (self.method, BASE_ENCRYPT_METHOD))
             self.data_parser.set_method(BASE_ENCRYPT_METHOD)
@@ -106,18 +109,20 @@ class SocketIOClient(object):
             globals()["method"] = BASE_ENCRYPT_METHOD
             globals()["server_support_method"] = BASE_ENCRYPT_METHOD
 
+    def _send_data_to_server(self, bytes_data, bytes_data_type=None):
+        str_data = self.data_parser.encode(bytes_data, bytes_data_type)
+        self.socketIO.emit("data", str_data)
+
     def start(self):
         if not globals()["server_support_method"] and self.method != BASE_ENCRYPT_METHOD:
-            data = self.data_parser.encode(self.method.encode())
-            self.socketIO.emit("method", data, self._set_method)
-            self.socketIO.wait_for_callbacks()
+            logger.info("first use %s and send a encrypt_handshake a server" % (BASE_ENCRYPT_METHOD))
+            self._send_data_to_server(self.method.encode(), DataParser.DATA_TYPE["encrypt_handshake"])
         gevent.spawn(self._wait_message_thread)
         try:
             while not self.disconnected:
                 data = self._read_socket()
                 logger.debug("send %s" % data)
-                data = self.data_parser.encode(data)
-                self.socketIO.emit("data", data)
+                self._send_data_to_server(data)
         except OSError:
             self.disconnect()
 
