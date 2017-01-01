@@ -12,7 +12,7 @@ standard_library.install_aliases()
 from builtins import *
 import gevent
 from gevent.server import StreamServer
-from socketIO_client import SocketIO, LoggingNamespace
+from SocketIOTunnel.socketIO_client import SocketIO, LoggingNamespace
 from SocketIOTunnel.encrypt import method_supported, BASE_ENCRYPT_METHOD
 from SocketIOTunnel.utils import logger
 from SocketIOTunnel.dataparse import DataParser
