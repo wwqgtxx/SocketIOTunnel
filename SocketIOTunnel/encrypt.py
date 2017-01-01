@@ -45,13 +45,20 @@ try:
     method_supported.update(rc4_md5.ciphers)
 except ImportError:
     logger.warning("can't load openssl!")
-    from SocketIOTunnel.crypto import pyaes
-    method_supported.update(pyaes.ciphers)
+    try:
+        from SocketIOTunnel.pythoncrypto import pyaes
+        method_supported.update(pyaes.ciphers)
+    except ImportError:
+        logger.warning("can't load pyaes!")
+    from SocketIOTunnel.pythoncrypto import pyrc4
+    method_supported.update(pyrc4.ciphers)
 try:
     sodium.load_libsodium()
     method_supported.update(sodium.ciphers)
 except ImportError:
     logger.warning("can't load libsodium!")
+    from SocketIOTunnel.pythoncrypto import pychacha
+    method_supported.update(pychacha.ciphers)
 
 logger.info("supporting encrypt method: \n%s" % sorted(list(method_supported.keys())))
 
