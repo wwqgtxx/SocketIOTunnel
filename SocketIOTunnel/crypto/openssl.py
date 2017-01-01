@@ -45,6 +45,7 @@ def load_openssl():
 
     libcrypto.EVP_CipherInit_ex.argtypes = (c_void_p, c_void_p, c_char_p,
                                             c_char_p, c_char_p, c_int)
+    libcrypto.EVP_CIPHER_CTX_set_padding.argtypes = (c_void_p, c_int)
 
     libcrypto.EVP_CipherUpdate.argtypes = (c_void_p, c_void_p, c_void_p,
                                            c_char_p, c_int)
@@ -104,6 +105,7 @@ class OpenSSLCrypto(object):
             raise Exception('can not create cipher context')
         r = libcrypto.EVP_CipherInit_ex(self._ctx, cipher, None,
                                         key_ptr, iv_ptr, c_int(op))
+        libcrypto.EVP_CIPHER_CTX_set_padding(self._ctx, c_int(1))
         if not r:
             self.clean()
             raise Exception('can not initialize cipher context')
@@ -133,9 +135,9 @@ class OpenSSLCrypto(object):
 
 
 ciphers = {
-    'aes-128-cbc': (16, 16, OpenSSLCrypto),
-    'aes-192-cbc': (24, 16, OpenSSLCrypto),
-    'aes-256-cbc': (32, 16, OpenSSLCrypto),
+    # 'aes-128-cbc': (16, 16, OpenSSLCrypto),
+    # 'aes-192-cbc': (24, 16, OpenSSLCrypto),
+    # 'aes-256-cbc': (32, 16, OpenSSLCrypto),
     'aes-128-cfb': (16, 16, OpenSSLCrypto),
     'aes-192-cfb': (24, 16, OpenSSLCrypto),
     'aes-256-cfb': (32, 16, OpenSSLCrypto),

@@ -9,7 +9,7 @@ standard_library.install_aliases()
 from builtins import *
 
 from SocketIOTunnel.utils import logger, base64_encode, base64_decode, base85_encode, base85_decode, crc32
-from SocketIOTunnel.encrypt import encrypt_all, method_to_id, id_to_method, method_supported
+from SocketIOTunnel.encrypt import encrypt_all, method_to_id, id_to_method, method_supported, BASE_ENCRYPT_METHOD
 import lz4
 import struct
 
@@ -35,11 +35,14 @@ class Encryptor(object):
 
     def encrypt(self, bytes_data):
         if not self.method:
-            method = 'aes-256-ofb'
+            method = BASE_ENCRYPT_METHOD
         else:
             method = self.method
         plain = bytes_data
-        cipher = encrypt_all(self.password, method, 1, plain)
+        try:
+            cipher = encrypt_all(self.password, method, 1, plain)
+        except AssertionError:
+            raise UnsupportEncryptMethod(self.method)
         data = struct.pack("!B", method_to_id[method])  # byte format requires 0 <= number <= 255
         data += cipher
         return data
@@ -51,7 +54,7 @@ class Encryptor(object):
             raise UnsupportEncryptMethod()
         if not method_supported.get(method, None):
             raise UnsupportEncryptMethod(method)
-        if not self.method and method != 'aes-256-ofb':
+        if not self.method and method != BASE_ENCRYPT_METHOD:
             self.method = method
             # logger.info("auto set encrypt method: %s" % method)
         cipher = bytes_data[1:]
@@ -126,6 +129,11 @@ class DataParser(object):
                 crc = crc32(encode_data)
                 str_data = "%08x%s" % (crc, encode_data)
                 return str_data
+            except UnsupportEncryptMethod:
+                logger.warning(
+                    "client not support your method %s ,force set to %s" % (self.method, BASE_ENCRYPT_METHOD))
+                self.set_method(BASE_ENCRYPT_METHOD)
+                return self.encode(bytes_data)
             except:
                 logger.exception("encode error!")
         return ''
@@ -152,12 +160,12 @@ class DataParser(object):
                         bytes_data = data
                 raw_data_crc = crc32(bytes_data)
                 if raw_crc and raw_crc != raw_data_crc:
-                    raise CRCError("crc error!,<%08x>!=<%08x>" % (raw_crc, raw_data_crc))
+                    raise CRCError("crc error!,<%08x>!=<%08x>,raw data is:%s" % (raw_crc, raw_data_crc, bytes_data))
                 # length1 = len(bytes_data)
                 # logger.info("%.02f%%" % (length0 / length1 * 100))
                 return bytes_data
-            except DataParseError as e:
-                raise e
+            # except DataParseError as e:
+            #     raise e
             except:
                 logger.exception("decode error!")
         return b''

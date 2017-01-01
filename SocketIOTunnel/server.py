@@ -55,7 +55,7 @@ class SocketIOServer(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.disconnected = False
 
-    def _read_socket(self, buffer_size=4096, need_decode=False, encoding="utf-8", errors="ignore"):
+    def _read_socket(self, buffer_size=1024, need_decode=False, encoding="utf-8", errors="ignore"):
         data = self.socket.recv(buffer_size)
         if not data:
             raise ConnectionError()

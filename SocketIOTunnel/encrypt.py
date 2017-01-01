@@ -27,6 +27,8 @@ from SocketIOTunnel.crypto import common
 from SocketIOTunnel.crypto import rc4_md5, openssl, sodium, table
 from SocketIOTunnel.utils import logger
 
+BASE_ENCRYPT_METHOD = 'chacha20-ietf'
+
 id_to_method = []
 id_to_method.extend(table.ciphers.keys())
 id_to_method.extend(openssl.ciphers.keys())
@@ -193,7 +195,9 @@ def encrypt_all(password, method, op, data):
         iv = data[:iv_len]
         data = data[iv_len:]
     cipher = m(method, key, iv, op)
-    result.append(cipher.update(data))
+    cipher_result = cipher.update(data)
+    assert cipher_result
+    result.append(cipher_result)
     return b''.join(result)
 
 
