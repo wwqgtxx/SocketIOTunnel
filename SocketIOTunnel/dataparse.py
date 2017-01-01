@@ -117,7 +117,7 @@ class DataParser(object):
         self.method = method
         self.encryptor = Encryptor(self.password, method)
 
-    def encode(self, bytes_data, bytes_data_type=None):
+    def encode(self, bytes_data, bytes_data_type=None, return_type=bytes):
         if bytes_data:
             try:
                 if self.encryptor and bytes_data_type != DataParser.DATA_TYPE["raw_data"]:
@@ -133,10 +133,16 @@ class DataParser(object):
                 head = struct.pack(">IB", raw_crc, data_type)
                 data = head + data
                 data = self.compresstor.compress(data)
-                encode_data = self.encoder.encode(data, return_type=str)
-                crc = crc32(encode_data)
-                str_data = "%08x%s" % (crc, encode_data)
-                return str_data
+                if return_type == str:
+                    data = self.encoder.encode(data, return_type=str)
+                    crc = crc32(data)
+                    str_data = "%08x%s" % (crc, data)
+                    return str_data
+                else:
+                    crc = crc32(data)
+                    output_bytes_data = struct.pack(">I", crc)
+                    output_bytes_data += data
+                    return output_bytes_data
             except UnsupportEncryptMethod:
                 logger.warning(
                     "client not support your method %s ,force set to %s" % (self.method, BASE_ENCRYPT_METHOD))
@@ -144,18 +150,30 @@ class DataParser(object):
                 return self.encode(bytes_data)
             except:
                 logger.exception("encode error!")
-        return ''
+        if return_type == bytes:
+            return b''
+        else:
+            return ''
 
-    def decode(self, str_data):
-        if str_data:
+    def decode(self, input_data):
+        if input_data:
             try:
-                # length0 = len(str_data)
-                crc = int(str_data[:8], 16)
-                encode_data = str_data[8:]
-                data_crc = crc32(encode_data)
+                # length0 = len(input_data)
+                if isinstance(input_data, bytearray):
+                    input_data = bytes(input_data)
+                if isinstance(input_data, bytes):
+                    crc = struct.unpack(">I", input_data[:4])[0]
+                    data = input_data[4:]
+                else:
+                    crc = int(input_data[:8], 16)
+                    data = input_data[8:]
+                data_crc = crc32(data)
                 if crc and crc != data_crc:
                     raise CRCError("crc error!,<%08x>!=<%08x>" % (crc, data_crc))
-                bytes_data = self.encoder.decode(encode_data, return_type=bytes)
+                if isinstance(input_data, str):
+                    bytes_data = self.encoder.decode(data, return_type=bytes)
+                else:
+                    bytes_data = data
                 bytes_data = self.compresstor.decompress(bytes_data)
                 raw_crc, data_type = struct.unpack(">IB", bytes_data[:5])
                 bytes_data = bytes_data[5:]

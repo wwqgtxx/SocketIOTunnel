@@ -22,6 +22,15 @@ from argparse import ArgumentParser
 logging.getLogger("requests").setLevel(logging.ERROR)
 logging.getLogger("socketIO-client").setLevel(logging.ERROR)
 
+try:
+    from ssl import SSLError
+except ImportError:
+    class SSLError(Exception):
+        pass
+
+import websocket
+websocket.SSLError = SSLError
+
 
 class SocketIOClient(object):
     def __init__(self, socket, address, server_ip, server_port, password, method):
@@ -95,7 +104,10 @@ class SocketIOClient(object):
 
     def _wait_message_thread(self):
         while not self.disconnected:
-            self.socketIO.wait()
+            try:
+                self.socketIO.wait()
+            except IndexError:
+                logger.warning("IndexError",exc_info=True)
 
     def _set_method(self, data):
         if data == "ok":
@@ -110,8 +122,9 @@ class SocketIOClient(object):
             globals()["server_support_method"] = BASE_ENCRYPT_METHOD
 
     def _send_data_to_server(self, bytes_data, bytes_data_type=None):
-        str_data = self.data_parser.encode(bytes_data, bytes_data_type)
-        self.socketIO.emit("data", str_data)
+        bytes_data = self.data_parser.encode(bytes_data, bytes_data_type)
+        bytes_data = bytearray(bytes_data)
+        self.socketIO.emit("data", bytes_data)
 
     def start(self):
         if not globals()["server_support_method"] and self.method != BASE_ENCRYPT_METHOD:
