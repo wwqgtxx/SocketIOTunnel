@@ -18,6 +18,7 @@ from SocketIOTunnel.utils import logger
 from SocketIOTunnel.dataparse import DataParser
 import logging
 from argparse import ArgumentParser
+import time
 
 logging.getLogger("requests").setLevel(logging.ERROR)
 logging.getLogger("socketIO-client").setLevel(logging.ERROR)
@@ -34,7 +35,7 @@ websocket.SSLError = SSLError
 
 
 class SocketIOClient(object):
-    def __init__(self, socket, address, server_ip, server_port, password, method):
+    def __init__(self, socket, address, server_ip, server_port, password, method, timeout=120):
         self.socket = socket
         self.address = address
         self.server_ip = server_ip
@@ -44,20 +45,34 @@ class SocketIOClient(object):
         self.data_parser = DataParser(password, globals()["server_support_method"])
         self.socketIO = None
         self.disconnected = False
+        self.timeout = timeout
+        self.socket.settimeout(self.timeout)
+        self.last_date_time = 0
+        self.reflush_last_date_time(calculate_timeout=False)
+
+    def reflush_last_date_time(self, calculate_timeout=True, update_time=True):
+        now_time = time.time()
+        if calculate_timeout:
+            timeout = (now_time - self.last_date_time)
+            if timeout > self.timeout:
+                logger.warning("timeout %fs" % timeout)
+                raise TimeoutError("timeout %fs" % timeout)
+        if update_time:
+            self.last_date_time = time.time()
 
     def _on_connect(self):
-        pass
+        self.reflush_last_date_time(calculate_timeout=False)
 
     def _on_disconnect(self):
         if not self.disconnected:
             logger.debug("disconnect <%s>" % self.socket)
-            self.disconnected = True
-            self.socket.close()
+            self.disconnect(from_sio=True)
 
     def _on_reconnect(self):
-        pass
+        logger.info("reconnect")
 
     def _on_data(self, data):
+        self.reflush_last_date_time(calculate_timeout=False)
         bytes_data, data_type = self.data_parser.decode(data)
         if data_type == DataParser.DATA_TYPE["encrypt_handshake"]:
             self._set_method(bytes_data.decode())
@@ -79,15 +94,20 @@ class SocketIOClient(object):
         self.socketIO.on('data', self._on_data)
         logger.debug("transport selected: %s" % self.socketIO.transport_name)
 
-    def disconnect(self):
+    def disconnect(self, from_sio=False):
         if not self.disconnected:
-            logger.debug("disconnect <%s>" % self.socket)
+            logger.debug("disconnect <%s,%s>" % (self.socket, self.socketIO))
             self.disconnected = True
             try:
                 self.socket.close()
             except:
                 logger.warning("error close socket", exc_info=True)
-            self.socketIO.disconnect()
+            if not from_sio:
+                self.socketIO.disconnect()
+            try:
+                self.socketIO._transport_instance._connection.close()
+            except:
+                pass
 
     def _read_socket(self, buffer_size=1024, need_decode=False, encoding="utf-8", errors="ignore"):
         data = self.socket.recv(buffer_size)
@@ -104,11 +124,15 @@ class SocketIOClient(object):
         return self.socket.send(data)
 
     def _wait_message_thread(self):
+        self.reflush_last_date_time(calculate_timeout=False)
         while not self.disconnected:
             try:
-                self.socketIO.wait()
+                self.reflush_last_date_time(update_time=False)
+                self.socketIO.wait(seconds=self.timeout)
             except IndexError:
                 logger.warning("IndexError", exc_info=True)
+            except TimeoutError:
+                self.disconnect()
 
     def _set_method(self, data):
         if data == "ok":

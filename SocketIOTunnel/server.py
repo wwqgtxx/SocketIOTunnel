@@ -12,7 +12,7 @@ standard_library.install_aliases()
 from builtins import *
 
 from SocketIOTunnel.utils import logger
-from SocketIOTunnel.dataparse import DataParser
+from SocketIOTunnel.dataparse import DataParser, DataParseError
 from SocketIOTunnel.encrypt import method_supported
 from SocketIOTunnel.socketio import Server as sio_Server, Middleware as sio_Middleware
 import socket
@@ -105,7 +105,11 @@ class SocketIOServer(object):
             self.disconnect()
 
     def message(self, data):
-        bytes_data, data_type = self.data_parser.decode(data)
+        try:
+            bytes_data, data_type = self.data_parser.decode(data)
+        except DataParseError:
+            self.disconnect()
+            return
         if data_type == DataParser.DATA_TYPE["encrypt_handshake"]:
             logger.debug("reecive client encrypt_handshake")
             method = bytes_data.decode()
@@ -120,7 +124,7 @@ class SocketIOServer(object):
             self._write_socket(bytes_data)
             # logger.info("finish _write_socket")
 
-    def disconnect(self):
+    def disconnect(self, from_sio=False):
         if not self.disconnected:
             logger.debug("close socket %s" % self.socket)
             self.disconnected = True
@@ -128,10 +132,16 @@ class SocketIOServer(object):
                 self.socket.close()
             except:
                 logger.warning("error close socket", exc_info=True)
+            if not from_sio:
+                try:
+                    sio.disconnect(self.sid, namespace=self.namespace)
+                except:
+                    logger.warning("error close socketio", exc_info=True)
             try:
-                sio.disconnect(self.sid, namespace=self.namespace)
-            except:
-                logger.warning("error close socketio", exc_info=True)
+                connect_pool[self.sid] = None
+                del connect_pool[self.sid]
+            except KeyError:
+                logger.warning("can't delete {%s,%s}" % (self.sid, self))
 
     def __del__(self):
         self.disconnect()
@@ -139,7 +149,7 @@ class SocketIOServer(object):
 
 @sio.on('connect')
 def connect(sid, environ):
-    namespace = '/'
+    namespace = None
     room = sid
     logger.debug('connect %s' % sid)
     sis = SocketIOServer(globals()["upstream_ip"], globals()["upstream_port"], sid, namespace, room,
@@ -166,12 +176,7 @@ def disconnect(sid):
     logger.debug('disconnect %s' % sid)
     sis = connect_pool.get(sid, None)
     if sis:
-        sis.disconnect()
-        try:
-            connect_pool[sid] = None
-            del connect_pool[sid]
-        except KeyError:
-            logger.warning("can't delete {%s,%s}" % (sid, sis))
+        sis.disconnect(from_sio=True)
 
 
 def main(ip="0.0.0.0", port=10010, upstream_ip="127.0.0.1", upstream_port=1080, password='password'):

@@ -17,6 +17,9 @@ import struct
 class DataParseError(RuntimeError):
     pass
 
+class IllegalInput(DataParseError):
+    pass
+
 
 class UnsupportEncryptMethod(DataParseError):
     pass
@@ -169,7 +172,7 @@ class DataParser(object):
                     data = input_data[4:]
                 else:
                     if str(input_data).startswith('51-['):
-                        raise DataParseError("illegal input : %s" % str(input_data))
+                        raise IllegalInput("illegal input : %s" % str(input_data))
                     crc = int(input_data[:8], 16)
                     data = input_data[8:]
                 data_crc = crc32(data)
@@ -199,6 +202,7 @@ class DataParser(object):
                 return bytes_data, data_type
             except DataParseError as e:
                 logger.error(e)
+                raise e
             except:
                 logger.exception("decode error!")
         return b'', DataParser.DATA_TYPE["raw_data"]
