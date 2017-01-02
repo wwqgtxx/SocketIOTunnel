@@ -15,7 +15,7 @@ try:
 
     # Dependencies are automatically detected, but it might need fine tuning.
     build_exe_options = {"include_files": ["libcrypto.dll", "libsodium.dll"],
-                         "packages": ["os", "sys", "gevent", "socketio", 'engineio'],
+                         "packages": ["os", "sys", "gevent", "socketio", 'engineio',"SocketIOTunnel"],
                          "excludes": ["tkinter", "redis", "eventlet"],
                          "zip_include_packages": [], "zip_exclude_packages": [], "include_msvcr": True}
 
