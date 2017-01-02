@@ -14,7 +14,7 @@ from builtins import *
 from SocketIOTunnel.utils import logger
 from SocketIOTunnel.dataparse import DataParser
 from SocketIOTunnel.encrypt import method_supported
-import SocketIOTunnel.socketio as socketio
+from SocketIOTunnel.socketio import Server as sio_Server, Middleware as sio_Middleware
 import socket
 from gevent import pywsgi
 import traceback
@@ -24,12 +24,12 @@ from argparse import ArgumentParser
 logging.getLogger("socketio").setLevel(logging.ERROR)
 logging.getLogger("engineio").setLevel(logging.ERROR)
 logging.getLogger("geventwebsocket.handler").setLevel(logging.ERROR)
-sio = socketio.Server(async_mode="gevent")
+sio = sio_Server(async_mode="gevent")
 
 connect_pool = dict()
 
 
-class Middleware(socketio.Middleware):
+class Middleware(sio_Middleware):
     def __call__(self, environ, start_response):
         try:
             return super(Middleware, self).__call__(environ, start_response)
