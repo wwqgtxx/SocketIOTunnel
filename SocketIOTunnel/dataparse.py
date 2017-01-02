@@ -197,8 +197,8 @@ class DataParser(object):
                 # length1 = len(bytes_data)
                 # logger.info("%.02f%%" % (length0 / length1 * 100))
                 return bytes_data, data_type
-            # except DataParseError as e:
-            #     raise e
+            except DataParseError as e:
+                logger.error(e)
             except:
                 logger.exception("decode error!")
         return b'', DataParser.DATA_TYPE["raw_data"]
