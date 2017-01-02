@@ -1,5 +1,8 @@
 import sys
-from cx_Freeze import setup, Executable
+try:
+    from cx_Freeze import setup, Executable
+except:
+    from distutils.core import setup
 
 VERSION = __import__('SocketIOTunnel').__version__
 REQUIREMENTS = [i.strip() for i in open("requirements.txt").readlines()]
