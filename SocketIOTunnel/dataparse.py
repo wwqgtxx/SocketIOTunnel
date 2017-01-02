@@ -169,7 +169,7 @@ class DataParser(object):
                     data = input_data[4:]
                 else:
                     if str(input_data).startswith('51-['):
-                        raise DataParseError()
+                        raise DataParseError("illegal input : %s" % str(input_data))
                     crc = int(input_data[:8], 16)
                     data = input_data[8:]
                 data_crc = crc32(data)
