@@ -45,7 +45,7 @@ app = Middleware(sio)
 
 
 class SocketIOServer(object):
-    def __init__(self, upstream_ip, upstream_port, sid, namespace, room, data_parser):
+    def __init__(self, upstream_ip, upstream_port, sid, namespace, room, data_parser, timeout=120):
         self.upstream_ip = upstream_ip
         self.upstream_port = upstream_port
         self.namespace = namespace
@@ -53,6 +53,7 @@ class SocketIOServer(object):
         self.room = room
         self.data_parser = data_parser
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.settimeout(timeout)
         self.disconnected = False
 
     def _read_socket(self, buffer_size=1024, need_decode=False, encoding="utf-8", errors="ignore"):
@@ -78,6 +79,8 @@ class SocketIOServer(object):
                 self._send_data_to_client(data)
         except ConnectionError:
             self.disconnect()
+        except TimeoutError:
+            self.disconnect()
         except OSError:
             self.disconnect()
 
@@ -92,7 +95,14 @@ class SocketIOServer(object):
         sio.start_background_task(self._read_socket_thread)
 
     def connect(self):
-        self.socket.connect((self.upstream_ip, self.upstream_port))
+        try:
+            self.socket.connect((self.upstream_ip, self.upstream_port))
+        except ConnectionRefusedError:
+            logger.warning("connect refused")
+            self.disconnect()
+        except:
+            logger.warning("connect error", exc_info=True)
+            self.disconnect()
 
     def message(self, data):
         bytes_data, data_type = self.data_parser.decode(data)
@@ -154,13 +164,14 @@ def data(sid, data):
 @sio.on('disconnect')
 def disconnect(sid):
     logger.debug('disconnect %s' % sid)
-    sis = connect_pool[sid]
-    sis.disconnect()
-    try:
-        connect_pool[sid] = None
-        del connect_pool[sid]
-    except KeyError:
-        logger.warning("can't delete {%s,%s}" % (sid, sis))
+    sis = connect_pool.get(sid, None)
+    if sis:
+        sis.disconnect()
+        try:
+            connect_pool[sid] = None
+            del connect_pool[sid]
+        except KeyError:
+            logger.warning("can't delete {%s,%s}" % (sid, sis))
 
 
 def main(ip="0.0.0.0", port=10010, upstream_ip="127.0.0.1", upstream_port=1080, password='password'):

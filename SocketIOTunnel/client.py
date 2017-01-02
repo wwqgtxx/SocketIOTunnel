@@ -124,7 +124,7 @@ class SocketIOClient(object):
 
     def _send_data_to_server(self, bytes_data, bytes_data_type=None):
         if self.socketIO.transport_name != 'websocket':
-            return_data = self.data_parser.encode(bytes_data, bytes_data_type, return_data=str)
+            return_data = self.data_parser.encode(bytes_data, bytes_data_type, return_type=str)
         else:
             return_data = self.data_parser.encode(bytes_data, bytes_data_type)
         if not return_data:
