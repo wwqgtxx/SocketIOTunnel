@@ -2,7 +2,7 @@ import json
 import six
 from collections import namedtuple
 from six.moves.urllib.parse import urlparse as parse_url
-from base64 import b64encode
+from base64 import b64encode,b64decode
 from copy import deepcopy
 
 from .symmetries import decode_string, encode_string, get_byte, get_character, get_int
@@ -110,7 +110,7 @@ def format_socketIO_packet_data(path=None, ack_id=None, args=None):
         return isinstance(obj, bytearray)
 
     def fn(data):
-        binary_packets.append(bytearray(b64encode(six.binary_type(data))))
+        binary_packets.append(bytearray(six.binary_type(data)))
         return {'_placeholder': True, 'num': len(binary_packets) - 1}
 
     args = traverse(
@@ -167,16 +167,38 @@ def parse_socketIO_packet(socketIO_packet):
         int(attachments))
 
 
+def format_packet(packet_type, packet_data):
+    if isinstance(packet_data, bytearray):
+        packet_type = chr(int(packet_type))
+        if not isinstance(packet_type, six.binary_type):
+            packet_type = encode_string(packet_type)
+        return bytearray(packet_type+six.binary_type(packet_data))
+    return str(packet_type) + packet_data
+
+
+def parse_packet(packet_text):
+    # 'b' --> binary base64 encoded packet
+    if isinstance(packet_text, six.binary_type) and six.byte2int(packet_text[0:1]) == 98:
+        packet_text = packet_text[1:]
+        packet_type = get_int(packet_text, 0)
+        packet_data = b64decode(packet_text[1:])
+    else:
+        packet_type = get_int(packet_text, 0)
+        packet_data = packet_text[1:]
+
+    return packet_type, packet_data
+
+
 def format_packet_text(packet_type, packet_data):
     if isinstance(packet_data, bytearray):
+        packet_type = 'b' + str(packet_type)
+        packet_data = b64encode(packet_data)
         packet_data = packet_data.decode('utf-8')
     return encode_string(str(packet_type) + packet_data)
 
 
 def parse_packet_text(packet_text):
-    packet_type = get_int(packet_text, 0)
-    packet_data = packet_text[1:]
-    return packet_type, packet_data
+    return parse_packet(packet_text)
 
 
 def get_namespace_path(socketIO_packet_data):

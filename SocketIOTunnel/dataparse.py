@@ -168,6 +168,8 @@ class DataParser(object):
                     crc = struct.unpack(">I", input_data[:4])[0]
                     data = input_data[4:]
                 else:
+                    if str(input_data).startswith('51-['):
+                        raise DataParseError()
                     crc = int(input_data[:8], 16)
                     data = input_data[8:]
                 data_crc = crc32(data)
@@ -180,9 +182,8 @@ class DataParser(object):
                 bytes_data = self.compresstor.decompress(bytes_data)
                 raw_crc, data_type = struct.unpack(">IB", bytes_data[:5])
                 bytes_data = bytes_data[5:]
-                if data_type == DataParser.DATA_TYPE["encrypt_handshake"]:
-                    if isinstance(input_data, str):
-                        self.encode_return_type = str
+                if isinstance(input_data, str):
+                    self.encode_return_type = str
                 if not data_type == DataParser.DATA_TYPE["raw_data"]:
                     data = self.encryptor.decrypt(bytes_data)
                     # logger.info(data)

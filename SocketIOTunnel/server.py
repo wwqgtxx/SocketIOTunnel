@@ -14,7 +14,7 @@ from builtins import *
 from SocketIOTunnel.utils import logger
 from SocketIOTunnel.dataparse import DataParser
 from SocketIOTunnel.encrypt import method_supported
-import socketio
+import SocketIOTunnel.socketio as socketio
 import socket
 from gevent import pywsgi
 import traceback
@@ -84,8 +84,9 @@ class SocketIOServer(object):
     def _send_data_to_client(self, bytes_data, bytes_data_type=None):
         str_data = self.data_parser.encode(bytes_data, bytes_data_type)
         # logger.info(data)
-        sio.emit("data", str_data, namespace=self.namespace, room=self.room)
-        # logger.info("finish to send to <%s,%s>" % (self.namespace, self.room))
+        if str_data:
+            sio.emit("data", str_data, namespace=self.namespace, room=self.room)
+            # logger.info("finish to send to <%s,%s>" % (self.namespace, self.room))
 
     def start(self):
         sio.start_background_task(self._read_socket_thread)

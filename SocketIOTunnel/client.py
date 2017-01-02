@@ -123,7 +123,12 @@ class SocketIOClient(object):
             globals()["server_support_method"] = BASE_ENCRYPT_METHOD
 
     def _send_data_to_server(self, bytes_data, bytes_data_type=None):
-        return_data = self.data_parser.encode(bytes_data, bytes_data_type)
+        if self.socketIO.transport_name != 'websocket':
+            return_data = self.data_parser.encode(bytes_data, bytes_data_type, return_data=str)
+        else:
+            return_data = self.data_parser.encode(bytes_data, bytes_data_type)
+        if not return_data:
+            return
         if isinstance(return_data, bytes):
             return_data = bytearray(return_data)
         self.socketIO.emit("data", return_data)
@@ -156,7 +161,7 @@ def socket_handle(socket, address):
 
 
 def main(ip="0.0.0.0", port=10011, server_ip="127.0.0.1", server_port=10010, password='password',
-         method='chacha20-ietf'):
+         method='chacha20'):
     parser = ArgumentParser(description="SocketIOTunnel Client")
     parser.add_argument('--ip', type=str, default=ip,
                         help="set listening ip")
