@@ -17,6 +17,7 @@ import struct
 class DataParseError(RuntimeError):
     pass
 
+
 class IllegalInput(DataParseError):
     pass
 
@@ -89,16 +90,47 @@ class Encoder(object):
         self.method = method
 
     def encode(self, input_data, return_type=str, encoding="utf-8"):
-        if self.method == "base64":
-            return base64_encode(input_data, return_type, encoding)
+        if return_type == str:
+            if self.method == "base64":
+                data = base64_encode(input_data, return_type, encoding)
+            else:
+                data = base85_encode(input_data, return_type, encoding)
+            crc = crc32(data)
+            str_data = "%08x%s" % (crc, data)
+            return str_data
         else:
-            return base85_encode(input_data, return_type, encoding)
+            data = input_data
+            crc = crc32(data)
+            output_bytes_data = struct.pack(">I", crc)
+            output_bytes_data += data
+            return output_bytes_data
 
     def decode(self, input_data, return_type=bytes, encoding="utf-8"):
-        if self.method == "base64":
-            return base64_decode(input_data, return_type, encoding)
+        if isinstance(input_data, bytearray):
+            input_data = bytes(input_data)
+        if isinstance(input_data, bytes):
+            crc = struct.unpack(">I", input_data[:4])[0]
+            data = input_data[4:]
         else:
-            return base85_decode(input_data, return_type, encoding)
+            if str(input_data).startswith('51-['):
+                raise IllegalInput("illegal input : %s" % str(input_data))
+            crc = int(input_data[:8], 16)
+            data = input_data[8:]
+        data_crc = crc32(data)
+        if crc and crc != data_crc:
+            raise CRCError("crc error!,<%08x>!=<%08x>" % (crc, data_crc))
+        if isinstance(input_data, str):
+            if self.method == "base64":
+                return_data = base64_decode(data, return_type, encoding)
+            else:
+                return_data = base85_decode(data, return_type, encoding)
+        else:
+            return_data = data
+        if return_type == bytes and isinstance(return_data, str):
+            return_data = return_data.encode(encoding=encoding)
+        if return_type == str and isinstance(return_data, bytes):
+            return_data = return_data.decode(encoding=encoding)
+        return return_data
 
 
 class DataParser(object):
@@ -139,16 +171,8 @@ class DataParser(object):
                 head = struct.pack(">IB", raw_crc, data_type)
                 data = head + data
                 data = self.compresstor.compress(data)
-                if return_type == str:
-                    data = self.encoder.encode(data, return_type=str)
-                    crc = crc32(data)
-                    str_data = "%08x%s" % (crc, data)
-                    return str_data
-                else:
-                    crc = crc32(data)
-                    output_bytes_data = struct.pack(">I", crc)
-                    output_bytes_data += data
-                    return output_bytes_data
+                data = self.encoder.encode(data, return_type)
+                return data
             except UnsupportEncryptMethod:
                 logger.warning(
                     "client not support your method %s ,force set to %s" % (self.method, BASE_ENCRYPT_METHOD))
@@ -165,23 +189,7 @@ class DataParser(object):
         if input_data:
             try:
                 # length0 = len(input_data)
-                if isinstance(input_data, bytearray):
-                    input_data = bytes(input_data)
-                if isinstance(input_data, bytes):
-                    crc = struct.unpack(">I", input_data[:4])[0]
-                    data = input_data[4:]
-                else:
-                    if str(input_data).startswith('51-['):
-                        raise IllegalInput("illegal input : %s" % str(input_data))
-                    crc = int(input_data[:8], 16)
-                    data = input_data[8:]
-                data_crc = crc32(data)
-                if crc and crc != data_crc:
-                    raise CRCError("crc error!,<%08x>!=<%08x>" % (crc, data_crc))
-                if isinstance(input_data, str):
-                    bytes_data = self.encoder.decode(data, return_type=bytes)
-                else:
-                    bytes_data = data
+                bytes_data = self.encoder.decode(input_data, return_type=bytes)
                 bytes_data = self.compresstor.decompress(bytes_data)
                 raw_crc, data_type = struct.unpack(">IB", bytes_data[:5])
                 bytes_data = bytes_data[5:]
