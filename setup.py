@@ -24,7 +24,7 @@ try:
     base = None
     # if sys.platform == "win32":
     #     base = "Win32GUI"
-    options = {"build_exe": build_exe_options},
+    options = {"build_exe": build_exe_options}
     executables = [Executable("client.py", base=base), Executable("server.py", base=base)]
     setup(
         name=NAME,
